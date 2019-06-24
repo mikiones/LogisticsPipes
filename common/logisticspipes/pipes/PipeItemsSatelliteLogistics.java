@@ -19,6 +19,9 @@ import logisticspipes.interfaces.IInventoryUtil;
 import logisticspipes.interfaces.routing.IAdditionalTargetInformation;
 import logisticspipes.interfaces.routing.IRequestItems;
 import logisticspipes.interfaces.routing.IRequireReliableTransport;
+import logisticspipes.items.ItemModule;
+import logisticspipes.logisticspipes.ItemModuleInformationManager;
+import logisticspipes.modules.ModuleCrafter;
 import logisticspipes.modules.ModuleSatellite;
 import logisticspipes.modules.abstractmodules.LogisticsModule;
 import logisticspipes.network.GuiIDs;
@@ -32,17 +35,20 @@ import logisticspipes.network.packets.satpipe.SyncSatelliteNamePacket;
 import logisticspipes.pipes.basic.CoreRoutedPipe;
 import logisticspipes.proxy.MainProxy;
 import logisticspipes.request.RequestTree;
+import logisticspipes.security.SecuritySettings;
 import logisticspipes.textures.Textures;
 import logisticspipes.textures.Textures.TextureType;
 import logisticspipes.utils.PlayerCollectionList;
 import logisticspipes.utils.item.ItemIdentifierStack;
 
 import net.minecraft.entity.player.EntityPlayer;
+import net.minecraft.inventory.EntityEquipmentSlot;
 import net.minecraft.item.Item;
 import net.minecraft.item.ItemStack;
 import net.minecraft.nbt.NBTTagCompound;
 
 import net.minecraft.util.EnumFacing;
+import net.minecraft.util.text.TextComponentTranslation;
 
 import lombok.Getter;
 
@@ -246,5 +252,34 @@ public class PipeItemsSatelliteLogistics extends CoreRoutedPipe implements IRequ
 			updateWatchers();
 		}
 		ensureAllSatelliteStatus();
+	}
+
+	@Override
+	protected boolean handleClick(EntityPlayer entityplayer, SecuritySettings settings) {
+		if (!entityplayer.isSneaking() && entityplayer.getItemStackFromSlot(EntityEquipmentSlot.MAINHAND).getItem() instanceof ItemModule) {
+
+			if (MainProxy.isServer(getWorld())) {
+				if (settings == null || settings.openGui) {
+					ItemStack stack = entityplayer.getItemStackFromSlot(EntityEquipmentSlot.MAINHAND);
+					ItemModule module = (ItemModule)stack.getItem();
+					LogisticsModule logisticsModule = module.getModuleForItem(stack, null, null, null);
+					if (logisticsModule != null && stack.getCount() > 0) {
+						ItemModuleInformationManager.readInformation(stack, logisticsModule);
+						logisticsModule.registerPosition(LogisticsModule.ModulePositionType.IN_HAND, entityplayer.inventory.currentItem);
+						if (logisticsModule instanceof ModuleCrafter) {
+							ModuleCrafter crafter = (ModuleCrafter) logisticsModule;
+							crafter.setSatelliteUUID(UUID.fromString(routerId));
+
+						}
+					}
+
+				} else {
+					entityplayer.sendMessage(new TextComponentTranslation("lp.chat.permissiondenied"));
+				}
+			}
+			return true;
+		}
+
+		return false;
 	}
 }
